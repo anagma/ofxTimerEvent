@@ -30,7 +30,7 @@ public:
 			duration = _duration;
 		}
 		timeResolution = _timeResolution;
-		startTimeMillis = ofGetElapsedTimeMillis()+startOffset;
+		startTimeMillis = ofGetElapsedTimeMillis()-startOffset;
 		lastUpdatedTime = 0;
 		repeatCount = 0;
 		getPocoThread().setName("ofxTimerEventThread");
