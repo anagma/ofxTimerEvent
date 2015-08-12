@@ -11,7 +11,7 @@
 
 #include "ofMain.h"
 
-#define OFX_TIMER_EVENT_TIME_RESOLUTION_DEFAULT 10
+#define OFX_TIMER_EVENT_TIME_RESOLUTION_DEFAULT 5
 
 class ofxTimerEvent : ofThread{
 	
@@ -51,9 +51,8 @@ public:
 		
 		if(! bDurationSetManually){
 			duration = getFinalKeyframeTime();
-			ofLogNotice("ofxTimerEvent") << "duration is not set. set it automatic" << duration;
 		}
-				
+		
 		long long elapsedTimeMillis = ofGetElapsedTimeMillis();
 		
 		startTimeMillis	= elapsedTimeMillis-startOffset;
@@ -170,48 +169,44 @@ public:
 protected:
 	void threadedFunction(){
 		while(isThreadRunning()){
-			if(lock()){
-				long long now = getNow();
-				if(now > 0){
-					if(bLoop){
-						int newRepeatCount = now/duration;
-						if(repeatCount != newRepeatCount){
-							repeatCount = newRepeatCount;
-							if(repeatCount > 0){
-								
-								// trigger all rest event
-								for(auto & k : keyframes){
-									if(k.second >= lastUpdatedTime && k.second <= duration){
-										string arg = k.first;
-										ofNotifyEvent(keyframe, arg, this);
-									}
+			long long now = getNow();
+			if(now > 0){
+				if(bLoop){
+					int newRepeatCount = now/duration;
+					if(repeatCount != newRepeatCount){
+						repeatCount = newRepeatCount;
+						if(repeatCount > 0){
+							
+							// trigger all rest event
+							for(auto & k : keyframes){
+								if(k.second >= lastUpdatedTime && k.second <= duration){
+									string arg = k.first;
+									ofNotifyEvent(keyframe, arg, this);
 								}
-								ofLogNotice("ofxTimerEventThread") << "Timer looped: " << repeatCount << ", " << now;
-								ofNotifyEvent(loop, this);
 							}
-							lastUpdatedTime = 0;
+							ofLogNotice("ofxTimerEventThread") << "Timer looped: " << repeatCount << ", " << now;
+							ofNotifyEvent(loop, this);
 						}
-						now %= duration;
+						lastUpdatedTime = 0;
 					}
-					
-					for(auto & k : keyframes){
-						if(k.second >= lastUpdatedTime && k.second < now){
-							string arg = k.first;
-							ofNotifyEvent(keyframe, arg, this);
-						}
-					}
-
-					lastUpdatedTime = now;
-					
+					now %= duration;
 				}
 				
-				if(! bLoop && now > duration){
-					ofLogNotice("ofxTimerEventThread") << "Reached to final keyframe. stop thread";
-					ofNotifyEvent(finish, this);
-					unlock();
-					break;
+				for(auto & k : keyframes){
+					if(k.second >= lastUpdatedTime && k.second < now){
+						string arg = k.first;
+						ofNotifyEvent(keyframe, arg, this);
+					}
 				}
-				unlock();
+
+				lastUpdatedTime = now;
+				
+			}
+			
+			if(! bLoop && now > duration){
+				ofLogNotice("ofxTimerEventThread") << "Reached to final keyframe. stop thread";
+				ofNotifyEvent(finish, this);
+				break;
 			}
 			ofSleepMillis(timeResolution);
 		}
@@ -220,7 +215,7 @@ protected:
 	long long getFinalKeyframeTime(){
 		long long time = 0;
 		for(auto & k : keyframes){
-			if(k.second >= time){
+			if(k.second >= duration){
 				time = k.second;
 			}
 		}
