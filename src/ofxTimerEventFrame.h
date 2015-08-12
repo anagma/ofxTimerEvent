@@ -1,26 +1,26 @@
 //
-//  ofxTimeEvent.h
-//  toposcan_4screen
+//  ofxTimerEventFrame.h
+//  voyageTest
 //
-//  Created by FURUDATE Ken on 2/21/15.
+//  Created by FURUDATE Ken on 6/28/15.
 //
 //
 
-#ifndef toposcan_4screen_ofxTimeEvent_h
-#define toposcan_4screen_ofxTimeEvent_h
+#ifndef voyageTest_ofxTimerEventFrame_h
+#define voyageTest_ofxTimerEventFrame_h
 
 #include "ofMain.h"
 
-#define OFX_TIMER_EVENT_TIME_RESOLUTION_DEFAULT 10
-
-class ofxTimerEvent : ofThread{
+class ofxTimerEventFrame{
 	
 	long long startTimeMillis;
-	map<string, long long> keyframes;
+	multimap<string, long long> keyframes;
 	long long duration;
+
+	bool bRunning;
 	
 	long long lastUpdatedTime;
-	int timeResolution;
+//	int timeResolution;
 	int repeatCount;
 	
 	bool bLoop;
@@ -32,9 +32,10 @@ public:
 	ofEvent<void> loop;
 	ofEvent<void> finish;
 	
-	ofxTimerEvent(){
+	ofxTimerEventFrame(){
+		bRunning = false;
 		// default
-		timeResolution = OFX_TIMER_EVENT_TIME_RESOLUTION_DEFAULT;
+//		timeResolution = OFX_TIMER_EVENT_TIME_RESOLUTION_DEFAULT;
 		duration = -1;
 		bLoop = false;
 		startTimeMillis = -1;
@@ -44,6 +45,7 @@ public:
 	}
 	
 	void start(long long startOffset=0){
+		bRunning = true;
 		if(keyframes.size() <= 0){
 			ofLogError("ofxTimerEvent") << "keyframes is empty. stop";
 		}
@@ -53,25 +55,26 @@ public:
 			duration = getFinalKeyframeTime();
 			ofLogNotice("ofxTimerEvent") << "duration is not set. set it automatic" << duration;
 		}
-				
+		
 		long long elapsedTimeMillis = ofGetElapsedTimeMillis();
 		
 		startTimeMillis	= elapsedTimeMillis-startOffset;
 		lastUpdatedTime	= elapsedTimeMillis-startTimeMillis;
 		repeatCount		= lastUpdatedTime/duration;
-
-		if(! isThreadRunning()){
-//			stopThread();
-			startThread(true);
-		}
-//		ofSleepMillis(1000);
-		getPocoThread().setName("ofxTimerEventThread");
+		
+//		if(! isThreadRunning()){
+//			//			stopThread();
+//			startThread(true);
+//		}
+//		//		ofSleepMillis(1000);
+//		getPocoThread().setName("ofxTimerEventThread");
 	}
 	void seek(long long time){
 		start(time);
 	}
 	void stop(){
-		stopThread();
+		bRunning = false;
+//		stopThread();
 	}
 	long long getNow(){
 		return ofGetElapsedTimeMillis()-startTimeMillis;
@@ -93,11 +96,13 @@ public:
 	}
 	
 	bool isRunning(){
-		return isThreadRunning();
+		return bRunning;
+//		return isThreadRunning();
 	}
 	
 	void clear(){
-		stopThread();
+		bRunning = false;
+//		stopThread();
 		keyframes.clear();
 		if(! bDurationSetManually){
 			duration = -1;
@@ -106,12 +111,12 @@ public:
 	}
 	
 	// resolution
-	void setTimeResolution(int _res){
-		timeResolution = _res;
-	}
-	int getTimeResolution(){
-		return timeResolution;
-	}
+//	void setTimeResolution(int _res){
+//		timeResolution = _res;
+//	}
+//	int getTimeResolution(){
+//		return timeResolution;
+//	}
 	
 	// duration
 	void setDuration(long long _duration){
@@ -134,7 +139,16 @@ public:
 	
 	// loop
 	void setLoop(bool _loop){
+		ofLogVerbose("ofxTimerEventFrame") << "set loop to: " << _loop;
 		bLoop = _loop;
+		if(! bLoop){
+			ofLogVerbose("ofxTimerEventFrame") << "start time truncate from: " << startTimeMillis;
+			while(getNow() > duration){
+				startTimeMillis += duration;
+			}
+			ofLogVerbose("ofxTimerEventFrame") << "start time truncated to: " << startTimeMillis;
+			ofLogVerbose("ofxTimerEventFrame") << "now: " << getNow();
+		}
 	}
 	bool isLoop(){
 		return bLoop;
@@ -167,56 +181,52 @@ public:
 	}
 	
 	
-protected:
-	void threadedFunction(){
-		while(isThreadRunning()){
-			if(lock()){
-				long long now = getNow();
-				if(now > 0){
-					if(bLoop){
-						int newRepeatCount = now/duration;
-						if(repeatCount != newRepeatCount){
-							repeatCount = newRepeatCount;
-							if(repeatCount > 0){
-								
-								// trigger all rest event
-								for(auto & k : keyframes){
-									if(k.second >= lastUpdatedTime && k.second <= duration){
-										string arg = k.first;
-										ofNotifyEvent(keyframe, arg, this);
-									}
+	
+	void update(){
+		if(bRunning){
+			long long now = getNow();
+			if(now > 0){
+				if(bLoop){
+					int newRepeatCount = now/duration;
+					if(repeatCount != newRepeatCount){
+						repeatCount = newRepeatCount;
+						if(repeatCount > 0){
+							
+							// trigger all rest event
+							for(auto & k : keyframes){
+								if(k.second >= lastUpdatedTime && k.second <= duration){
+									string arg = k.first;
+									ofNotifyEvent(keyframe, arg, this);
 								}
-								ofLogNotice("ofxTimerEventThread") << "Timer looped: " << repeatCount << ", " << now;
-								ofNotifyEvent(loop, this);
 							}
-							lastUpdatedTime = 0;
+							ofLogNotice("ofxTimerEventThread") << "Timer looped: " << repeatCount << ", " << now;
+							ofNotifyEvent(loop, this);
 						}
-						now %= duration;
+						lastUpdatedTime = 0;
 					}
-					
-					for(auto & k : keyframes){
-						if(k.second >= lastUpdatedTime && k.second < now){
-							string arg = k.first;
-							ofNotifyEvent(keyframe, arg, this);
-						}
-					}
-
-					lastUpdatedTime = now;
-					
+					now %= duration;
 				}
 				
-				if(! bLoop && now > duration){
-					ofLogNotice("ofxTimerEventThread") << "Reached to final keyframe. stop thread";
-					ofNotifyEvent(finish, this);
-					unlock();
-					break;
+				for(auto & k : keyframes){
+					if(k.second >= lastUpdatedTime && k.second < now){
+						string arg = k.first;
+						ofNotifyEvent(keyframe, arg, this);
+					}
 				}
-				unlock();
+				
+				lastUpdatedTime = now;
+				
 			}
-			ofSleepMillis(timeResolution);
+			
+			if(! bLoop && now > duration){
+				ofLogNotice("ofxTimerEventThread") << "Reached to final keyframe. stop thread";
+				ofNotifyEvent(finish, this);
+				bRunning = false;
+			}
 		}
 	}
 	
+protected:
 	long long getFinalKeyframeTime(){
 		long long time = 0;
 		for(auto & k : keyframes){
